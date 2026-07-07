@@ -10,7 +10,8 @@ CREATE TABLE limiter_small AS SELECT i FROM range(5) tbl(i);
 statement ok
 CREATE TABLE limiter_large AS SELECT i FROM range(100) tbl(i);
 
-# Disabled by default.
+# The default budget is idx_t max, so queries are effectively unrestricted
+# unless the setting is configured.
 query I
 SELECT count(*) FROM limiter_large;
 ----
@@ -56,4 +57,10 @@ SELECT count(*) FROM limiter_small, limiter_large WHERE limiter_small.i = limite
 Query rejected by max_rows_to_scan
 
 statement ok
-SET max_rows_to_scan = 0;
+RESET max_rows_to_scan;
+
+# Resetting returns to the default max budget.
+query I
+SELECT count(*) FROM limiter_large;
+----
+100

@@ -19,6 +19,7 @@ constexpr const char *MAX_ROWS_TO_SCAN_SETTING = "max_rows_to_scan";
 constexpr const char *UNKNOWN_POLICY_SETTING = "max_rows_to_scan_unknown";
 constexpr const char *UNKNOWN_POLICY_ALLOW = "allow";
 constexpr const char *UNKNOWN_POLICY_REJECT = "reject";
+constexpr idx_t DEFAULT_MAX_ROWS_TO_SCAN = NumericLimits<idx_t>::Maximum();
 
 struct ScanEstimate {
 	idx_t rows = 0;
@@ -28,7 +29,7 @@ struct ScanEstimate {
 idx_t GetMaxRowsToScan(ClientContext &context) {
 	Value value;
 	if (!context.TryGetCurrentSetting(MAX_ROWS_TO_SCAN_SETTING, value) || value.IsNull()) {
-		return 0;
+		return DEFAULT_MAX_ROWS_TO_SCAN;
 	}
 	return value.GetValue<idx_t>();
 }
@@ -83,7 +84,7 @@ ScanEstimate EstimateRowsToScan(ClientContext &context, LogicalOperator &op) {
 
 void EnforceMaxRowsToScan(OptimizerExtensionInput &input, unique_ptr<LogicalOperator> &plan) {
 	auto max_rows_to_scan = GetMaxRowsToScan(input.context);
-	if (max_rows_to_scan == 0 || !plan) {
+	if (!plan) {
 		return;
 	}
 
@@ -102,8 +103,8 @@ void EnforceMaxRowsToScan(OptimizerExtensionInput &input, unique_ptr<LogicalOper
 void RegisterSettings(DBConfig &config) {
 	config.AddExtensionOption(MAX_ROWS_TO_SCAN_SETTING,
 	                          "Reject queries before execution when estimated table-scan rows exceed this value. "
-	                          "Set to 0 to disable.",
-	                          LogicalType::UBIGINT, Value::UBIGINT(0));
+	                          "Defaults to the maximum idx_t value.",
+	                          LogicalType::UBIGINT, Value::UBIGINT(DEFAULT_MAX_ROWS_TO_SCAN));
 	config.AddExtensionOption(
 	    UNKNOWN_POLICY_SETTING,
 	    "Policy for scans without row estimates when max_rows_to_scan is enabled: allow or reject.",

@@ -11,7 +11,7 @@ SET max_rows_to_scan = 1000000;
 SELECT * FROM my_large_table;
 ```
 
-Set `max_rows_to_scan` to `0` to disable the guard. This is the default.
+By default, `max_rows_to_scan` is set to the maximum `idx_t` value, so queries are effectively unrestricted unless you configure a smaller budget.
 
 When a scan does not provide a row estimate, the `max_rows_to_scan_unknown` setting controls the behavior:
 
