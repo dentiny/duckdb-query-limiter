@@ -2,6 +2,8 @@
 # description: test query_limiter extension
 # group: [sql]
 
+load __TEST_DIR__/query_limiter_persistent.db
+
 require query_limiter
 
 statement ok
@@ -9,6 +11,15 @@ CREATE TABLE limiter_small AS SELECT i FROM range(5) tbl(i);
 
 statement ok
 CREATE TABLE limiter_large AS SELECT i FROM range(100) tbl(i);
+
+statement ok
+CHECKPOINT;
+
+# TODO(hjiang): there's a stats optimization bug in DuckDB core, that committed but unpersisted row group doesn't prune correctly.
+restart
+
+statement ok
+LOAD query_limiter;
 
 # The default budget is idx_t max, so queries are effectively unrestricted
 # unless the setting is configured.
@@ -20,15 +31,21 @@ SELECT count(*) FROM limiter_large;
 statement ok
 SET max_rows_to_scan = 10;
 
-# A scan below the limit is allowed.
+# A persisted table scan below the limit is allowed.
 query I
 SELECT count(*) FROM limiter_small;
 ----
 5
 
-# A scan above the limit is rejected before physical execution.
-statement error
+# COUNT(*) on a checkpointed table can be answered from metadata and does not scan rows.
+query I
 SELECT count(*) FROM limiter_large;
+----
+100
+
+# A persisted table scan above the limit is rejected using table metadata before physical execution.
+statement error
+SELECT sum(i) FROM limiter_large;
 ----
 Query rejected by max_rows_to_scan
 
