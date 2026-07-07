@@ -90,9 +90,8 @@ void EnforceMaxRowsToScan(OptimizerExtensionInput &input, unique_ptr<LogicalOper
 	auto estimate = EstimateRowsToScan(input.context, *plan);
 	auto unknown_policy = GetUnknownPolicy(input.context);
 	if (estimate.unknown_scans > 0 && unknown_policy == UNKNOWN_POLICY_REJECT) {
-		throw InvalidInputException(
-		    "Query rejected by %s: %llu table scan(s) do not provide a row scan estimate", MAX_ROWS_TO_SCAN_SETTING,
-		    estimate.unknown_scans);
+		throw InvalidInputException("Query rejected by %s: %llu table scan(s) do not provide a row scan estimate",
+		                            MAX_ROWS_TO_SCAN_SETTING, estimate.unknown_scans);
 	}
 	if (estimate.rows > max_rows_to_scan) {
 		throw InvalidInputException("Query rejected by %s: estimated rows to scan is %llu, limit is %llu",
@@ -105,9 +104,10 @@ void RegisterSettings(DBConfig &config) {
 	                          "Reject queries before execution when estimated table-scan rows exceed this value. "
 	                          "Set to 0 to disable.",
 	                          LogicalType::UBIGINT, Value::UBIGINT(0));
-	config.AddExtensionOption(UNKNOWN_POLICY_SETTING,
-	                          "Policy for scans without row estimates when max_rows_to_scan is enabled: allow or reject.",
-	                          LogicalType::VARCHAR, Value(UNKNOWN_POLICY_ALLOW), ValidateUnknownPolicy);
+	config.AddExtensionOption(
+	    UNKNOWN_POLICY_SETTING,
+	    "Policy for scans without row estimates when max_rows_to_scan is enabled: allow or reject.",
+	    LogicalType::VARCHAR, Value(UNKNOWN_POLICY_ALLOW), ValidateUnknownPolicy);
 }
 
 void RegisterOptimizer(DBConfig &config) {
