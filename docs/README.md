@@ -5,9 +5,11 @@ Query Limiter is a DuckDB extension that rejects queries before physical executi
 ## Usage
 
 ```sql
+FORCE INSTALL query_limiter FROM community;
 LOAD query_limiter;
-SET max_rows_to_scan = 1000000;
 
+SET max_rows_to_scan = 1000000;
+-- Query will fail if estimated rows to scan exceeds the limit.
 SELECT * FROM my_large_table;
 ```
 
@@ -25,23 +27,3 @@ The limit applies to estimated input rows scanned, not output rows. For example,
 ## Limitations
 
 The guard depends on cardinality estimates exposed by DuckDB table functions. It prevents physical scan execution, but planning and binding may still need metadata access for some external sources.
-
-## Building
-
-```sh
-make
-```
-
-The main binaries are:
-
-```sh
-./build/release/duckdb
-./build/release/test/unittest
-./build/release/extension/query_limiter/query_limiter.duckdb_extension
-```
-
-## Testing
-
-```sh
-make test
-```
