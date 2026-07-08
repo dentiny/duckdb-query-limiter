@@ -1,0 +1,36 @@
+# name: test/sql/query_limiter_unknown_estimate.test
+# description: test query_limiter handling for scans without row estimates
+# group: [sql]
+
+load __TEST_DIR__/query_limiter_unknown_estimate.db
+
+require query_limiter
+
+require allow_unsigned_extensions
+
+statement ok
+LOAD query_limiter;
+
+statement ok
+LOAD '__BUILD_DIRECTORY__/extension/query_limiter/query_limiter_test.duckdb_extension';
+
+statement ok
+SET max_rows_to_scan_unknown = 'reject';
+
+# Scans without a cardinality callback can be rejected explicitly.
+statement error
+SELECT * FROM query_limiter_unknown_estimate();
+----
+Query rejected by max_rows_to_scan: 1 table scan(s) do not provide a row scan estimate
+
+statement ok
+SET max_rows_to_scan_unknown = 'allow';
+
+# The same unknown-estimate scan is allowed when the policy permits it.
+query I
+SELECT count(*) FROM query_limiter_unknown_estimate();
+----
+2
+
+statement ok
+RESET max_rows_to_scan_unknown;

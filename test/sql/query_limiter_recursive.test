@@ -1,0 +1,84 @@
+# name: test/sql/query_limiter_recursive.test
+# description: test query_limiter recursively sums child query scan estimates
+# group: [sql]
+
+load __TEST_DIR__/query_limiter_recursive.db
+
+require query_limiter
+
+statement ok
+CREATE TABLE recursive_left AS SELECT i FROM range(5) tbl(i);
+
+statement ok
+CREATE TABLE recursive_right AS SELECT i FROM range(7) tbl(i);
+
+statement ok
+CREATE TABLE recursive_outer AS SELECT i FROM range(11) tbl(i);
+
+statement ok
+CHECKPOINT;
+
+restart
+
+statement ok
+LOAD query_limiter;
+
+statement ok
+SET max_rows_to_scan = 12;
+
+# The UNION ALL is a child query with two table scans. The recursive estimate is 5 + 7.
+query I
+SELECT sum(i) FROM (
+	SELECT i FROM recursive_left
+	UNION ALL
+	SELECT i FROM recursive_right
+) child_query;
+----
+31
+
+statement ok
+SET max_rows_to_scan = 11;
+
+# Dropping the limit below 5 + 7 verifies that child query scans are included.
+statement error
+SELECT sum(i) FROM (
+	SELECT i FROM recursive_left
+	UNION ALL
+	SELECT i FROM recursive_right
+) child_query;
+----
+Query rejected by max_rows_to_scan: estimated rows to scan is 12, limit is 11
+
+statement ok
+SET max_rows_to_scan = 23;
+
+# A parent scan plus a nested child query should sum all descendant table scans: 11 + 5 + 7.
+query I
+SELECT sum(o.i) FROM recursive_outer o
+WHERE o.i IN (
+	SELECT i FROM (
+		SELECT i FROM recursive_left
+		UNION ALL
+		SELECT i FROM recursive_right
+	) child_query
+);
+----
+21
+
+statement ok
+SET max_rows_to_scan = 22;
+
+statement error
+SELECT sum(o.i) FROM recursive_outer o
+WHERE o.i IN (
+	SELECT i FROM (
+		SELECT i FROM recursive_left
+		UNION ALL
+		SELECT i FROM recursive_right
+	) child_query
+);
+----
+Query rejected by max_rows_to_scan: estimated rows to scan is 23, limit is 22
+
+statement ok
+RESET max_rows_to_scan;
