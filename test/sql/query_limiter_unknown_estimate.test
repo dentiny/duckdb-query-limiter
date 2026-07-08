@@ -2,6 +2,8 @@
 # description: test query_limiter handling for scans without row estimates
 # group: [sql]
 
+require notwindows
+
 load __TEST_DIR__/query_limiter_unknown_estimate.db
 
 require query_limiter
