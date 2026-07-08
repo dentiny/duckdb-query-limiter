@@ -6,6 +6,8 @@ load __TEST_DIR__/query_limiter_recursive.db
 
 require query_limiter
 
+require notwindows
+
 statement ok
 CREATE TABLE recursive_left AS SELECT i FROM range(5) tbl(i);
 
