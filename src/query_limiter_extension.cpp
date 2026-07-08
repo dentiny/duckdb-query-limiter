@@ -5,6 +5,7 @@
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/limits.hpp"
 #include "duckdb/common/string_util.hpp"
+#include "duckdb/logging/logger.hpp"
 #include "duckdb/main/client_context.hpp"
 #include "duckdb/main/config.hpp"
 #include "duckdb/main/extension/extension_loader.hpp"
@@ -89,6 +90,8 @@ void EnforceMaxRowsToScan(OptimizerExtensionInput &input, unique_ptr<LogicalOper
 	}
 
 	auto estimate = EstimateRowsToScan(input.context, *plan);
+	DUCKDB_LOG_DEBUG(input.context, StringUtil::Format("estimated rows to scan: %llu, unknown scans: %llu, limit: %llu",
+	                                                   estimate.rows, estimate.unknown_scans, max_rows_to_scan));
 	auto unknown_policy = GetUnknownPolicy(input.context);
 	if (estimate.unknown_scans > 0 && unknown_policy == UNKNOWN_POLICY_REJECT) {
 		throw InvalidInputException("Query rejected by %s: %llu table scan(s) do not provide a row scan estimate",
