@@ -160,9 +160,11 @@ if __name__ == "__main__":
             "Please enter the name of your extension in valid snake_case containing only lower case letters and numbers"
         )
 
-    shutil.copyfile("docs/NEXT_README.md", "README.md")
-    os.remove("docs/NEXT_README.md")
-    os.remove("docs/README.md")
+    next_readme = Path("docs/NEXT_README.md")
+    if next_readme.exists():
+        shutil.copyfile(next_readme, "README.md")
+        os.remove(next_readme)
+        os.remove("docs/README.md")
 
     files_to_search = []
     files_to_search.extend(Path("./.github").rglob("./**/*.yml"))
