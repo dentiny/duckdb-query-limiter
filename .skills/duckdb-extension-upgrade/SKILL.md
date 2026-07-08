@@ -19,7 +19,7 @@ Track these as a checklist; do not skip ahead:
 - 2. Pin extension-ci-tools submodule to $TARGET (same tag)
 - 3. Reconcile CMakeLists.txt EXTENSION_SOURCES if DuckDB extension build APIs changed
 - 4. Build: CMAKE_BUILD_PARALLEL_LEVEL=10 make reldebug
-- 5. Run SQL tests: `./build/reldebug/test/unittest test/sql/query_limiter.test`
+- 5. Run SQL tests: `make test_reldebug`
 - 6. Update docs if the target DuckDB version changes build, install, or runtime instructions
 
 ## Reference
