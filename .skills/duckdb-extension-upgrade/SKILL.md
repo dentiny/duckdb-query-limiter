@@ -21,7 +21,6 @@ Track these as a checklist; do not skip ahead:
 - 4. Build: CMAKE_BUILD_PARALLEL_LEVEL=10 make reldebug
 - 5. Run SQL tests: `make test_reldebug`
 - 6. Update docs if the target DuckDB version changes build, install, or runtime instructions
-- 7. Bumpup version at community extension repo (i.e., `~/Desktop/community-extensions`)
 
 ## Reference
 
