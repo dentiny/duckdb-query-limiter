@@ -1,14 +1,12 @@
-# Next
-
-## Added
-
-- Add `query_limiter_estimate(query)` to inspect estimated scan rows and unknown scans without executing the query ([#10]).
-
 # 0.1.2
 
 ## Added
 
 - Add discoverable descriptions, examples, categories, and parameter names for registered DuckDB functions.
+
+- Add `query_limiter_estimate(query)` to inspect estimated scan rows and unknown scans without executing the query ([#12]).
+
+[#12]: https://github.com/dentiny/duckdb-query-limiter/pull/12
 
 # 0.1.1
 
