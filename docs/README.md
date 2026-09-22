@@ -26,6 +26,21 @@ By default, `max_rows_to_scan` is set to the maximum `idx_t` value, so queries a
 
 The limit applies to estimated input rows scanned, not output rows. `LIMIT`, filters, and aggregations can reduce the result size without reducing the amount of data DuckDB expects to scan.
 
+## Inspecting an Estimate
+
+Use `query_limiter_estimate` to inspect the scan estimate for one SQL statement without executing it:
+
+```sql
+SELECT query_limiter_estimate('SELECT sum(i) FROM my_large_table');
+```
+
+The function returns a struct with:
+
+- `estimated_rows`: the sum of the row estimates exposed by all scans in the optimized plan.
+- `unknown_scans`: the number of scans that do not expose an estimate.
+
+The inspected statement is not subject to `max_rows_to_scan` or `max_rows_to_scan_unknown`, so its estimate can be checked even when it would be rejected. Parsing, binding, and planning still occur and can access source metadata.
+
 ## Unknown Estimates
 
 Some table functions do not expose a row estimate. By default Query Limiter allows those scans:

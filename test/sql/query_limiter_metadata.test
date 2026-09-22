@@ -4,7 +4,12 @@
 
 require notwindows
 
+require query_limiter
+
 require allow_unsigned_extensions
+
+statement ok
+LOAD query_limiter;
 
 statement ok
 LOAD '__BUILD_DIRECTORY__/extension/query_limiter/query_limiter_test.duckdb_extension';
@@ -12,10 +17,10 @@ LOAD '__BUILD_DIRECTORY__/extension/query_limiter/query_limiter_test.duckdb_exte
 query I
 SELECT count(*)
 FROM duckdb_functions()
-WHERE function_name = 'query_limiter_unknown_estimate'
+WHERE function_name IN ('query_limiter_estimate', 'query_limiter_unknown_estimate')
 AND description IS NOT NULL
 AND examples IS NOT NULL
 AND categories IS NOT NULL
 AND parameters IS NOT NULL;
 ----
-1
+2
