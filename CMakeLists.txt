@@ -19,8 +19,9 @@ set(EXTENSION_SOURCES src/query_limiter_extension.cpp)
 
 build_static_extension(${TARGET_NAME} ${EXTENSION_SOURCES})
 build_loadable_extension(${TARGET_NAME} " " ${EXTENSION_SOURCES})
-build_loadable_extension(query_limiter_test " "
-                         test/extension/query_limiter_test_extension.cpp)
+build_loadable_extension(
+  query_limiter_test " " test/extension/query_limiter_test_extension.cpp
+  test/extension/query_limiter_test_functions.cpp)
 
 install(
   TARGETS ${EXTENSION_NAME}

@@ -1,3 +1,9 @@
+# 0.1.2
+
+## Added
+
+- Add discoverable descriptions, examples, categories, and parameter names for registered DuckDB functions.
+
 # 0.1.1
 
 ## Changed
