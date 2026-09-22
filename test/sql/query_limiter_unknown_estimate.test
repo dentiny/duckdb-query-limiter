@@ -19,6 +19,15 @@ LOAD '__BUILD_DIRECTORY__/extension/query_limiter/query_limiter_test.duckdb_exte
 statement ok
 SET max_rows_to_scan_unknown = 'reject';
 
+# Dry-run estimates report unknown scans instead of rejecting the inspected query.
+query II
+SELECT estimate.estimated_rows, estimate.unknown_scans
+FROM (
+	SELECT query_limiter_estimate('SELECT * FROM query_limiter_unknown_estimate()') AS estimate
+);
+----
+0	1
+
 # Scans without a cardinality callback can be rejected explicitly.
 statement error
 SELECT * FROM query_limiter_unknown_estimate();

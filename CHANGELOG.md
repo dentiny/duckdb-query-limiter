@@ -1,3 +1,9 @@
+# Next
+
+## Added
+
+- Add `query_limiter_estimate(query)` to inspect estimated scan rows and unknown scans without executing the query ([#10]).
+
 # 0.1.2
 
 ## Added
@@ -17,3 +23,4 @@
 - Initial release of Query Limiter extension ([#1])
 
 [#1]: https://github.com/dentiny/duckdb-query-limiter/pull/1
+[#10]: https://github.com/dentiny/duckdb-query-limiter/issues/10

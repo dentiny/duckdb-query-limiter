@@ -1,0 +1,71 @@
+# name: test/sql/query_limiter_estimate.test
+# description: test dry-run scan estimates
+# group: [sql]
+
+load __TEST_DIR__/query_limiter_estimate.db
+
+require query_limiter
+
+statement ok
+CREATE TABLE estimate_left AS SELECT i FROM range(5) tbl(i);
+
+statement ok
+CREATE TABLE estimate_right AS SELECT i FROM range(7) tbl(i);
+
+statement ok
+CHECKPOINT;
+
+restart
+
+statement ok
+LOAD query_limiter;
+
+# The function reports the estimate used by the limiter without executing the query.
+query II
+SELECT estimate.estimated_rows, estimate.unknown_scans
+FROM (SELECT query_limiter_estimate('SELECT sum(i) FROM estimate_left') AS estimate);
+----
+5	0
+
+# Estimates include every scan in the optimized plan.
+query II
+SELECT estimate.estimated_rows, estimate.unknown_scans
+FROM (
+	SELECT query_limiter_estimate(
+		'SELECT * FROM estimate_left, estimate_right WHERE estimate_left.i = estimate_right.i'
+	) AS estimate
+);
+----
+12	0
+
+# The inspected statement is planned but not executed.
+query II
+SELECT estimate.estimated_rows, estimate.unknown_scans
+FROM (SELECT query_limiter_estimate('SELECT error(''must not execute'')') AS estimate);
+----
+0	0
+
+# Inspection remains available even when the inspected query exceeds the active limit.
+statement ok
+SET max_rows_to_scan = 1;
+
+query II
+SELECT estimate.estimated_rows, estimate.unknown_scans
+FROM (SELECT query_limiter_estimate('SELECT sum(i) FROM estimate_left') AS estimate);
+----
+5	0
+
+statement ok
+SET max_rows_to_scan_unknown = 'reject';
+
+# A scalar estimate does not introduce an unknown input scan in its outer query.
+query II
+SELECT estimate.estimated_rows, estimate.unknown_scans
+FROM (SELECT query_limiter_estimate('SELECT 42') AS estimate);
+----
+0	0
+
+statement error
+SELECT query_limiter_estimate('SELECT 1; SELECT 2');
+----
+query_limiter_estimate requires exactly one SQL statement
