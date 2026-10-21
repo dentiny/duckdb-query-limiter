@@ -1,7 +1,8 @@
 #include "query_limiter_test_functions.hpp"
 
+#include "duckdb/common/identifier.hpp"
 #include "duckdb/common/types/data_chunk.hpp"
-#include "duckdb/common/types/value.hpp"
+#include "duckdb/common/vector/vector_writer.hpp"
 #include "duckdb/function/table_function.hpp"
 #include "duckdb/main/extension/extension_loader.hpp"
 #include "duckdb/parser/parsed_data/create_table_function_info.hpp"
@@ -15,7 +16,7 @@ struct UnknownEstimateScanState : public GlobalTableFunctionState {
 };
 
 unique_ptr<FunctionData> UnknownEstimateScanBind(ClientContext &, TableFunctionBindInput &, vector<LogicalType> &types,
-                                                 vector<string> &names) {
+                                                 vector<Identifier> &names) {
 	types.emplace_back(LogicalType::INTEGER);
 	names.emplace_back("i");
 	return nullptr;
@@ -27,12 +28,12 @@ unique_ptr<GlobalTableFunctionState> UnknownEstimateScanInit(ClientContext &, Ta
 
 void UnknownEstimateScan(ClientContext &, TableFunctionInput &input, DataChunk &output) {
 	auto &state = input.global_state->Cast<UnknownEstimateScanState>();
-	idx_t count = 0;
-	while (state.offset < 2 && count < STANDARD_VECTOR_SIZE) {
-		output.SetValue(0, count++, Value::INTEGER(static_cast<int32_t>(state.offset)));
-		state.offset++;
+	auto count = MinValue<idx_t>(2 - state.offset, STANDARD_VECTOR_SIZE);
+	auto writer = FlatVector::Writer<int32_t>(output.data[0], count);
+	for (idx_t row = 0; row < count; row++) {
+		writer.WriteValue(static_cast<int32_t>(state.offset++));
 	}
-	output.SetCardinality(count);
+	output.CheckCardinality(count);
 }
 
 } // namespace

@@ -1,0 +1,89 @@
+# name: test/sql/query_limiter_v2.test
+# description: test v2 planner integration, identifiers, and vectorized estimates
+# group: [sql]
+
+require query_limiter
+
+# SQL function and setting names remain case-insensitive identifiers.
+statement ok
+SET MAX_ROWS_TO_SCAN = 0;
+
+statement ok
+SET MAX_ROWS_TO_SCAN_UNKNOWN = 'ReJeCt';
+
+query II
+SELECT e.ESTIMATED_ROWS, e.UNKNOWN_SCANS
+FROM (SELECT QUERY_LIMITER_ESTIMATE('SELECT 42') AS e);
+----
+0	0
+
+statement ok
+RESET max_rows_to_scan;
+
+statement ok
+RESET max_rows_to_scan_unknown;
+
+# Constant and NULL inputs propagate correctly across a complete vector.
+query III
+SELECT count(*), count(e), sum(e.estimated_rows)
+FROM (SELECT query_limiter_estimate('SELECT 42') AS e FROM range(3000));
+----
+3000	3000	0
+
+query I
+SELECT query_limiter_estimate(NULL) IS NULL;
+----
+true
+
+# Filtering produces selected input rows; the discarded SQL must never be planned.
+query II
+SELECT e.estimated_rows, e.unknown_scans
+FROM (
+	SELECT query_limiter_estimate(q) AS e
+	FROM (VALUES (0, 'invalid SQL'), (1, 'SELECT 42'), (2, NULL), (3, 'SELECT 43')) v(i, q)
+	WHERE i > 0
+);
+----
+0	0
+NULL	NULL
+0	0
+
+# Reusing result vectors across chunks must not retain NULL bits from previous chunks.
+query III
+SELECT count(*), count(e), sum(e.unknown_scans)
+FROM (
+	SELECT query_limiter_estimate(CASE WHEN i % 2 = 0 THEN NULL ELSE 'SELECT 42' END) AS e
+	FROM range(5000) v(i)
+);
+----
+5000	2500	0
+
+# Parse and bind failures must release the nested-planning guard.
+statement error
+SELECT query_limiter_estimate('SELECT FROM');
+----
+Parser Error
+
+statement error
+SELECT query_limiter_estimate('SELECT * FROM missing_query_limiter_table');
+----
+does not exist
+
+query II
+SELECT e.estimated_rows, e.unknown_scans
+FROM (SELECT query_limiter_estimate('SELECT 42') AS e);
+----
+0	0
+
+# Planner::Optimize applies mandatory aggregate rewrites even with optional optimization disabled.
+statement ok
+SET enable_optimizer = false;
+
+query II
+SELECT e.estimated_rows, e.unknown_scans
+FROM (SELECT query_limiter_estimate('SELECT count(*) FROM range(5)') AS e);
+----
+5	0
+
+statement ok
+RESET enable_optimizer;

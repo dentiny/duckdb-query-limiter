@@ -12,7 +12,7 @@ statement ok
 LOAD query_limiter;
 
 statement ok
-LOAD '__BUILD_DIRECTORY__/extension/query_limiter/query_limiter_test.duckdb_extension';
+LOAD '{BUILD_DIRECTORY}/extension/query_limiter/query_limiter_test.duckdb_extension';
 
 query I
 SELECT count(*)

@@ -2,7 +2,7 @@
 # description: test dry-run scan estimates
 # group: [sql]
 
-load __TEST_DIR__/query_limiter_estimate.db
+load {TEST_DIR}/query_limiter_estimate.db
 
 require query_limiter
 

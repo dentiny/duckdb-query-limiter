@@ -29,6 +29,8 @@
 
 ## Testing
 
+* Use Python 3.10 or newer for DuckDB v2.0's test runner.
+* To run all SQL tests after a reldebug build, run `make test_reldebug`.
 * To run the focused SQL test, run `./build/reldebug/test/unittest test/sql/query_limiter.test`.
 * To run all SQL tests, run `make test` or `make test_debug`.
 

@@ -5,6 +5,8 @@
 #include "duckdb/common/exception.hpp"
 #include "duckdb/common/limits.hpp"
 #include "duckdb/common/string_util.hpp"
+#include "duckdb/common/vector/vector_iterator.hpp"
+#include "duckdb/common/vector/vector_writer.hpp"
 #include "duckdb/execution/expression_executor_state.hpp"
 #include "duckdb/function/scalar_function.hpp"
 #include "duckdb/logging/logger.hpp"
@@ -13,11 +15,12 @@
 #include "duckdb/main/config.hpp"
 #include "duckdb/main/extension/extension_loader.hpp"
 #include "duckdb/optimizer/optimizer_extension.hpp"
-#include "duckdb/optimizer/optimizer.hpp"
 #include "duckdb/parser/parsed_data/create_scalar_function_info.hpp"
 #include "duckdb/parser/parser.hpp"
 #include "duckdb/planner/planner.hpp"
 #include "duckdb/planner/operator/logical_get.hpp"
+
+#include <string_view>
 
 namespace duckdb {
 
@@ -74,12 +77,13 @@ idx_t GetMaxRowsToScan(ClientContext &context) {
 	return value.GetValue<idx_t>();
 }
 
-string GetUnknownPolicy(ClientContext &context) {
+bool RejectUnknownScans(ClientContext &context) {
 	Value value;
 	if (!context.TryGetCurrentSetting(UNKNOWN_POLICY_SETTING, value) || value.IsNull()) {
-		return UNKNOWN_POLICY_ALLOW;
+		return false;
 	}
-	return StringUtil::Lower(value.GetValue<string>());
+	// ValidateUnknownPolicy normalizes the stored value before it is read here.
+	return std::string_view(StringValue::Get(value)) == UNKNOWN_POLICY_REJECT;
 }
 
 void ValidateUnknownPolicy(ClientContext &, SetScope, Value &parameter) {
@@ -143,7 +147,7 @@ ScanEstimate EstimateRowsToScan(ClientContext &context, LogicalOperator &op) {
 
 ScanEstimate PlanAndEstimate(ClientContext &context, const string &query) {
 	EstimatePlanningGuard guard(context);
-	Parser parser(context.GetParserOptions());
+	Parser parser(context);
 	parser.ParseQuery(query);
 	if (parser.statements.size() != 1) {
 		throw InvalidInputException("%s requires exactly one SQL statement", ESTIMATE_FUNCTION);
@@ -151,14 +155,9 @@ ScanEstimate PlanAndEstimate(ClientContext &context, const string &query) {
 
 	Planner planner(context);
 	planner.CreatePlan(std::move(parser.statements[0]));
-	auto plan = std::move(planner.plan);
-	D_ASSERT(plan);
-
-	if (context.config.enable_optimizer && plan->RequireOptimizer()) {
-		Optimizer optimizer(*planner.binder, context);
-		plan = optimizer.Optimize(std::move(plan));
-	}
-	return EstimateRowsToScan(context, *plan);
+	planner.Optimize();
+	D_ASSERT(planner.plan);
+	return EstimateRowsToScan(context, *planner.plan);
 }
 
 LogicalType EstimateResultType() {
@@ -171,15 +170,18 @@ void EstimateFunction(DataChunk &args, ExpressionState &state, Vector &result) {
 	}
 
 	auto &context = state.GetContext();
-	for (idx_t row = 0; row < args.size(); row++) {
-		auto query = args.GetValue(0, row);
-		if (query.IsNull()) {
-			result.SetValue(row, Value(EstimateResultType()));
+	auto queries = args.data[0].Values<string_t>();
+	auto writer = FlatVector::Writer<VectorStructType<uint64_t, uint64_t>>(result, args.size());
+	for (auto query : queries) {
+		if (!query.IsValid()) {
+			writer.WriteNull();
 			continue;
 		}
-		auto estimate = PlanAndEstimate(context, query.GetValue<string>());
-		result.SetValue(row, Value::STRUCT({{"estimated_rows", Value::UBIGINT(estimate.rows)},
-		                                    {"unknown_scans", Value::UBIGINT(estimate.unknown_scans)}}));
+		auto estimate = PlanAndEstimate(context, query.GetValue().GetString());
+		writer.WriteValue([&](auto &rows, auto &unknown_scans) {
+			rows.WriteValue(estimate.rows);
+			unknown_scans.WriteValue(estimate.unknown_scans);
+		});
 	}
 }
 
@@ -214,10 +216,9 @@ void EnforceMaxRowsToScan(OptimizerExtensionInput &input, unique_ptr<LogicalOper
 	}
 
 	auto estimate = EstimateRowsToScan(input.context, *plan);
-	DUCKDB_LOG_DEBUG(input.context, StringUtil::Format("estimated rows to scan: %llu, unknown scans: %llu, limit: %llu",
-	                                                   estimate.rows, estimate.unknown_scans, max_rows_to_scan));
-	auto unknown_policy = GetUnknownPolicy(input.context);
-	if (estimate.unknown_scans > 0 && unknown_policy == UNKNOWN_POLICY_REJECT) {
+	DUCKDB_LOG_DEBUG(input.context, "estimated rows to scan: %llu, unknown scans: %llu, limit: %llu", estimate.rows,
+	                 estimate.unknown_scans, max_rows_to_scan);
+	if (estimate.unknown_scans > 0 && RejectUnknownScans(input.context)) {
 		throw InvalidInputException("Query rejected by %s: %llu table scan(s) do not provide a row scan estimate",
 		                            MAX_ROWS_TO_SCAN_SETTING, estimate.unknown_scans);
 	}
