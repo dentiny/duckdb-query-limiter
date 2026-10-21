@@ -4,7 +4,7 @@
 
 require notwindows
 
-load __TEST_DIR__/query_limiter_unknown_estimate.db
+load {TEST_DIR}/query_limiter_unknown_estimate.db
 
 require query_limiter
 
@@ -14,10 +14,15 @@ statement ok
 LOAD query_limiter;
 
 statement ok
-LOAD '__BUILD_DIRECTORY__/extension/query_limiter/query_limiter_test.duckdb_extension';
+LOAD '{BUILD_DIRECTORY}/extension/query_limiter/query_limiter_test.duckdb_extension';
+
+statement error
+SET max_rows_to_scan_unknown = 'invalid';
+----
+max_rows_to_scan_unknown must be either 'allow' or 'reject'
 
 statement ok
-SET max_rows_to_scan_unknown = 'reject';
+SET max_rows_to_scan_unknown = 'ReJeCt';
 
 # Dry-run estimates report unknown scans instead of rejecting the inspected query.
 query II
@@ -35,7 +40,7 @@ SELECT * FROM query_limiter_unknown_estimate();
 Query rejected by max_rows_to_scan: 1 table scan(s) do not provide a row scan estimate
 
 statement ok
-SET max_rows_to_scan_unknown = 'allow';
+SET max_rows_to_scan_unknown = 'AlLoW';
 
 # The same unknown-estimate scan is allowed when the policy permits it.
 query I

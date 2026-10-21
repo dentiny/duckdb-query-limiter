@@ -2,7 +2,7 @@
 # description: test query_limiter recursively sums child query scan estimates
 # group: [sql]
 
-load __TEST_DIR__/query_limiter_recursive.db
+load {TEST_DIR}/query_limiter_recursive.db
 
 require query_limiter
 
