@@ -3,6 +3,7 @@
 #include "query_limiter_extension.hpp"
 
 #include "duckdb/common/exception.hpp"
+#include "duckdb/common/identifier.hpp"
 #include "duckdb/common/limits.hpp"
 #include "duckdb/common/string_util.hpp"
 #include "duckdb/common/vector/vector_iterator.hpp"
@@ -30,12 +31,12 @@ namespace {
 // Constants and State
 //===--------------------------------------------------------------------===//
 
-constexpr const char *MAX_ROWS_TO_SCAN_SETTING = "max_rows_to_scan";
-constexpr const char *UNKNOWN_POLICY_SETTING = "max_rows_to_scan_unknown";
-constexpr const char *ESTIMATE_FUNCTION = "query_limiter_estimate";
-constexpr const char *CONTEXT_STATE_KEY = "query_limiter_context_state";
-constexpr const char *UNKNOWN_POLICY_ALLOW = "allow";
-constexpr const char *UNKNOWN_POLICY_REJECT = "reject";
+constexpr std::string_view MAX_ROWS_TO_SCAN_SETTING = "max_rows_to_scan";
+constexpr std::string_view UNKNOWN_POLICY_SETTING = "max_rows_to_scan_unknown";
+constexpr std::string_view ESTIMATE_FUNCTION = "query_limiter_estimate";
+constexpr std::string_view CONTEXT_STATE_KEY = "query_limiter_context_state";
+constexpr std::string_view UNKNOWN_POLICY_ALLOW = "allow";
+constexpr std::string_view UNKNOWN_POLICY_REJECT = "reject";
 constexpr idx_t DEFAULT_MAX_ROWS_TO_SCAN = NumericLimits<idx_t>::Maximum();
 
 struct ScanEstimate {
@@ -50,9 +51,9 @@ struct QueryLimiterContextState : public ClientContextState {
 class EstimatePlanningGuard {
 public:
 	explicit EstimatePlanningGuard(ClientContext &context)
-	    : state(context.registered_state->GetOrCreate<QueryLimiterContextState>(CONTEXT_STATE_KEY)) {
+	    : state(context.registered_state->GetOrCreate<QueryLimiterContextState>(string(CONTEXT_STATE_KEY))) {
 		if (state->planning_estimate) {
-			throw InvalidInputException("%s cannot be nested", ESTIMATE_FUNCTION);
+			throw InvalidInputException("%s cannot be nested", ESTIMATE_FUNCTION.data());
 		}
 		state->planning_estimate = true;
 	}
@@ -71,7 +72,7 @@ private:
 
 idx_t GetMaxRowsToScan(ClientContext &context) {
 	Value value;
-	if (!context.TryGetCurrentSetting(MAX_ROWS_TO_SCAN_SETTING, value) || value.IsNull()) {
+	if (!context.TryGetCurrentSetting(Identifier(MAX_ROWS_TO_SCAN_SETTING), value) || value.IsNull()) {
 		return DEFAULT_MAX_ROWS_TO_SCAN;
 	}
 	return value.GetValue<idx_t>();
@@ -79,7 +80,7 @@ idx_t GetMaxRowsToScan(ClientContext &context) {
 
 bool RejectUnknownScans(ClientContext &context) {
 	Value value;
-	if (!context.TryGetCurrentSetting(UNKNOWN_POLICY_SETTING, value) || value.IsNull()) {
+	if (!context.TryGetCurrentSetting(Identifier(UNKNOWN_POLICY_SETTING), value) || value.IsNull()) {
 		return false;
 	}
 	// ValidateUnknownPolicy normalizes the stored value before it is read here.
@@ -89,19 +90,19 @@ bool RejectUnknownScans(ClientContext &context) {
 void ValidateUnknownPolicy(ClientContext &, SetScope, Value &parameter) {
 	auto policy = StringUtil::Lower(parameter.GetValue<string>());
 	if (policy != UNKNOWN_POLICY_ALLOW && policy != UNKNOWN_POLICY_REJECT) {
-		throw InvalidInputException("%s must be either '%s' or '%s'", UNKNOWN_POLICY_SETTING, UNKNOWN_POLICY_ALLOW,
-		                            UNKNOWN_POLICY_REJECT);
+		throw InvalidInputException("%s must be either '%s' or '%s'", UNKNOWN_POLICY_SETTING.data(),
+		                            UNKNOWN_POLICY_ALLOW.data(), UNKNOWN_POLICY_REJECT.data());
 	}
 	parameter = Value(policy);
 }
 
 void RegisterSettings(DBConfig &config) {
-	config.AddExtensionOption(MAX_ROWS_TO_SCAN_SETTING,
+	config.AddExtensionOption(Identifier(MAX_ROWS_TO_SCAN_SETTING),
 	                          "Reject queries before execution when estimated table-scan rows exceed this value. "
 	                          "Defaults to the maximum idx_t value.",
 	                          LogicalType::UBIGINT, Value::UBIGINT(DEFAULT_MAX_ROWS_TO_SCAN));
 	config.AddExtensionOption(
-	    UNKNOWN_POLICY_SETTING,
+	    Identifier(UNKNOWN_POLICY_SETTING),
 	    "Policy for scans without row estimates when max_rows_to_scan is enabled: allow or reject.",
 	    LogicalType::VARCHAR, Value(UNKNOWN_POLICY_ALLOW), ValidateUnknownPolicy);
 }
@@ -150,7 +151,7 @@ ScanEstimate PlanAndEstimate(ClientContext &context, const string &query) {
 	Parser parser(context);
 	parser.ParseQuery(query);
 	if (parser.statements.size() != 1) {
-		throw InvalidInputException("%s requires exactly one SQL statement", ESTIMATE_FUNCTION);
+		throw InvalidInputException("%s requires exactly one SQL statement", ESTIMATE_FUNCTION.data());
 	}
 
 	Planner planner(context);
@@ -166,7 +167,7 @@ LogicalType EstimateResultType() {
 
 void EstimateFunction(DataChunk &args, ExpressionState &state, Vector &result) {
 	if (!state.HasContext()) {
-		throw InvalidInputException("%s requires a client context", ESTIMATE_FUNCTION);
+		throw InvalidInputException("%s requires a client context", ESTIMATE_FUNCTION.data());
 	}
 
 	auto &context = state.GetContext();
@@ -186,7 +187,8 @@ void EstimateFunction(DataChunk &args, ExpressionState &state, Vector &result) {
 }
 
 void RegisterFunctions(ExtensionLoader &loader) {
-	ScalarFunction function(ESTIMATE_FUNCTION, {LogicalType::VARCHAR}, EstimateResultType(), EstimateFunction);
+	ScalarFunction function(Identifier(ESTIMATE_FUNCTION), {LogicalType::VARCHAR}, EstimateResultType(),
+	                        EstimateFunction);
 	function.SetVolatile();
 	function.SetFallible();
 
@@ -206,7 +208,7 @@ void RegisterFunctions(ExtensionLoader &loader) {
 //===--------------------------------------------------------------------===//
 
 void EnforceMaxRowsToScan(OptimizerExtensionInput &input, unique_ptr<LogicalOperator> &plan) {
-	auto state = input.context.registered_state->Get<QueryLimiterContextState>(CONTEXT_STATE_KEY);
+	auto state = input.context.registered_state->Get<QueryLimiterContextState>(string(CONTEXT_STATE_KEY));
 	if (state && state->planning_estimate) {
 		return;
 	}
@@ -220,11 +222,11 @@ void EnforceMaxRowsToScan(OptimizerExtensionInput &input, unique_ptr<LogicalOper
 	                 estimate.unknown_scans, max_rows_to_scan);
 	if (estimate.unknown_scans > 0 && RejectUnknownScans(input.context)) {
 		throw InvalidInputException("Query rejected by %s: %llu table scan(s) do not provide a row scan estimate",
-		                            MAX_ROWS_TO_SCAN_SETTING, estimate.unknown_scans);
+		                            MAX_ROWS_TO_SCAN_SETTING.data(), estimate.unknown_scans);
 	}
 	if (estimate.rows > max_rows_to_scan) {
 		throw InvalidInputException("Query rejected by %s: estimated rows to scan is %llu, limit is %llu",
-		                            MAX_ROWS_TO_SCAN_SETTING, estimate.rows, max_rows_to_scan);
+		                            MAX_ROWS_TO_SCAN_SETTING.data(), estimate.rows, max_rows_to_scan);
 	}
 }
 

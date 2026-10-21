@@ -16,6 +16,11 @@ LOAD query_limiter;
 statement ok
 LOAD '{BUILD_DIRECTORY}/extension/query_limiter/query_limiter_test.duckdb_extension';
 
+statement error
+SET max_rows_to_scan_unknown = 'invalid';
+----
+max_rows_to_scan_unknown must be either 'allow' or 'reject'
+
 statement ok
 SET max_rows_to_scan_unknown = 'ReJeCt';
 

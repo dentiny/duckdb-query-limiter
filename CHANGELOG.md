@@ -4,7 +4,7 @@
 
 - Upgrade DuckDB to `v2.0.0` and pin extension-ci-tools to `fe955ed3a046b0324cac2c691e73d8d776a7d5cc`.
 - Migrate table-function column names to DuckDB identifiers and use the v2.0 planner and vector APIs for scan estimates.
-- Enforce standard C++17 and correct the distribution workflow extension name.
+- Enforce standard C++17, use `constexpr std::string_view` for global string constants, and correct the distribution workflow extension name.
 
 # 0.1.2
 
