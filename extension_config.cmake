@@ -2,6 +2,6 @@
 # to load
 
 # Extension from this repo
-duckdb_extension_load(query_limiter SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR})
+duckdb_extension_load(query_limiter SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR} EXTENSION_VERSION 0.2.1)
 
 # Any extra extensions that should be built e.g.: duckdb_extension_load(json)
